@@ -48,22 +48,34 @@ async def handle_list_tools() -> list[Tool]:
     return [
         Tool(
             name="shodan_host_lookup",
-            description="Look up information about a specific IP address using Shodan",
+            description="""Look up comprehensive information about a specific IPv4 address using Shodan.
+            
+This tool provides detailed host intelligence including:
+• Open ports and running services with banners
+• Geographic location and network ownership details  
+• Service versions and product information
+• Historical scan data (if requested)
+• Vulnerability information when available
+
+Best for: Investigating specific hosts, security assessment, network reconnaissance.
+Common use cases: "What services run on 8.8.8.8?", "Check if this IP has vulnerabilities", "Get details about this server"
+
+Tip: Use history=true for temporal analysis of how services have changed over time.""",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "ip": {
                         "type": "string",
-                        "description": "IPv4 address to look up (e.g., '8.8.8.8')",
+                        "description": "IPv4 address to look up (e.g., '8.8.8.8', '192.168.1.1'). Must be a valid IPv4 address.",
                     },
                     "history": {
                         "type": "boolean",
-                        "description": "Include historical data (default: False)",
+                        "description": "Include historical scan data showing how services have changed over time (default: False). Useful for tracking infrastructure changes.",
                         "default": False,
                     },
                     "minify": {
                         "type": "boolean",
-                        "description": "Return minimal data (default: False)",
+                        "description": "Return minimal data with only essential fields (default: False). Use when you need basic info quickly.",
                         "default": False,
                     },
                 },
@@ -72,17 +84,36 @@ async def handle_list_tools() -> list[Tool]:
         ),
         Tool(
             name="shodan_search",
-            description="Search Shodan using query filters (e.g., 'apache port:80', 'country:US')",
+            description="""Search Shodan's database using flexible query filters to find devices and services.
+
+This tool enables discovery of Internet-connected devices using Shodan's powerful search syntax:
+• Service detection: 'apache', 'nginx', 'ssh', 'ftp'
+• Port scanning: 'port:22', 'port:80', 'port:443'
+• Geographic filtering: 'country:US', 'city:London', 'geo:"37.7749,-122.4194"'
+• Technology stack: 'ssl:true', 'product:nginx', 'version:1.18'
+• Vulnerability hunting: 'vuln:CVE-2014-0160', 'vuln:ms17-010'
+• IoT device discovery: 'webcam', 'printer', 'router', 'scada'
+• Network ranges: 'net:192.168.1.0/24'
+
+Example powerful queries:
+• 'apache port:80 country:US' - US Apache servers
+• 'port:22 "SSH-2.0-OpenSSH" country:RU' - Russian OpenSSH servers
+• 'webcam city:Tokyo' - Tokyo webcams
+• 'vuln:CVE-2017-0144' - EternalBlue vulnerable systems
+• 'product:"Hikvision IP Camera"' - Specific camera models
+
+Best for: Large-scale reconnaissance, vulnerability research, IoT discovery, threat hunting.
+Tip: Start with broad queries, then narrow with additional filters. Use shodan_count first for large result sets.""",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "Shodan search query (e.g., 'apache', 'port:22', 'country:US ssl:true')",
+                        "description": "Shodan search query using filters and keywords. Examples: 'apache port:80', 'country:US ssl:true', 'webcam city:London', 'vuln:CVE-2014-0160'. Combine multiple filters with spaces.",
                     },
                     "limit": {
                         "type": "integer",
-                        "description": "Maximum number of results to return (default: 10, max: 100)",
+                        "description": "Maximum number of results to return (default: 10, max: 100). Start small for exploration, increase for comprehensive analysis. Use shodan_count first to estimate result sizes.",
                         "default": 10,
                         "minimum": 1,
                         "maximum": 100,
@@ -93,13 +124,26 @@ async def handle_list_tools() -> list[Tool]:
         ),
         Tool(
             name="shodan_count",
-            description="Get the count of search results for a Shodan query without returning the actual results",
+            description="""Get the total count of search results for a Shodan query without fetching actual host data.
+
+This tool is essential for:
+• Understanding the scale of search results before running expensive queries
+• Researching global trends and statistics
+• Planning comprehensive data collection strategies
+• Validating query effectiveness without using search credits
+
+Returns total counts plus faceted breakdowns when available (by country, organization, port, etc.).
+
+Best for: Scale assessment, trend analysis, query validation.
+Example uses: "How many Apache servers exist globally?", "Count of IoT devices in Germany", "Scale of CVE-2017-0144 exposure"
+
+Tip: Always use this before large shodan_search operations to understand result scope and plan accordingly.""",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "Shodan search query to count results for",
+                        "description": "Shodan search query to count results for. Uses same syntax as shodan_search. Examples: 'port:22', 'apache country:US', 'vuln:CVE-2017-0144'.",
                     }
                 },
                 "required": ["query"],
@@ -107,7 +151,20 @@ async def handle_list_tools() -> list[Tool]:
         ),
         Tool(
             name="shodan_info",
-            description="Get information about your Shodan API account (query credits, scan credits, etc.)",
+            description="""Get information about your Shodan API account including usage limits and current status.
+
+Returns detailed account information:
+• Query credits remaining (for search operations)
+• Scan credits available (for network scanning)
+• Number of monitored IPs in your account
+• Current subscription plan details
+• HTTPS API access status
+• Unlocked features and remaining unlocks
+
+Best for: Resource planning, quota management, understanding API limitations.
+Use cases: "How many searches can I still do?", "What's my current plan?", "Do I have scan credits available?"
+
+Tip: Check this regularly during intensive research sessions to avoid hitting rate limits.""",
             inputSchema={"type": "object", "properties": {}, "required": []},
         ),
     ]
