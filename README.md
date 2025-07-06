@@ -49,8 +49,8 @@ Add this configuration to your Claude Desktop `config.json` file:
 {
   "mcpServers": {
     "shodan": {
-      "command": "poetry",
-      "args": ["run", "python", "-m", "shodan_mcp"],
+      "command": "/full/path/to/poetry", # you can find this using command `which poetry`
+      "args": ["run","-C","/path/to/your/shodan_mcp","python", "-m", "shodan_mcp"],
       "cwd": "/path/to/your/shodan_mcp"
     }
   }
