@@ -9,20 +9,15 @@ host information, and vulnerability scanning through the Model Context Protocol.
 import asyncio
 import json
 import logging
-from typing import Any, Sequence
 
 import shodan
-from decouple import config
+from decouple import config, UndefinedValueError
 from mcp.server.lowlevel import NotificationOptions, Server
 from mcp.server.models import InitializationOptions
 from mcp.server.stdio import stdio_server
 from mcp.types import (
-    Resource,
     Tool,
     TextContent,
-    ImageContent,
-    EmbeddedResource,
-    LoggingLevel,
 )
 
 # Configure logging
@@ -34,7 +29,10 @@ try:
     SHODAN_API_KEY = config("SHODAN_API_KEY")
     api = shodan.Shodan(SHODAN_API_KEY)
     logger.info("Shodan API initialized successfully")
-except Exception as e:
+except UndefinedValueError:
+    logger.error("SHODAN_API_KEY environment variable not found")
+    api = None
+except shodan.APIError as e:
     logger.error(f"Failed to initialize Shodan API: {e}")
     api = None
 
@@ -231,7 +229,7 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                 )
             ]
 
-        elif name == "shodan_search":
+        if name == "shodan_search":
             query = arguments.get("query")
             limit = min(arguments.get("limit", 10), 100)  # Cap at 100
 
@@ -272,7 +270,7 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                 )
             ]
 
-        elif name == "shodan_count":
+        if name == "shodan_count":
             query = arguments.get("query")
 
             if not query:
@@ -297,7 +295,7 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                 )
             ]
 
-        elif name == "shodan_info":
+        if name == "shodan_info":
             logger.info("Getting Shodan API info")
             info = api.info()
 
@@ -325,8 +323,8 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
     except shodan.APIError as e:
         logger.error(f"Shodan API error: {e}")
         return [TextContent(type="text", text=f"Shodan API Error: {str(e)}")]
-    except Exception as e:
-        logger.error(f"Unexpected error in {name}: {e}")
+    except (ValueError, KeyError) as e:
+        logger.error(f"Invalid request in {name}: {e}")
         return [TextContent(type="text", text=f"Error: {str(e)}")]
 
 
