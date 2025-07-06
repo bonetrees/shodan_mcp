@@ -107,6 +107,33 @@ Once connected, you can ask Claude things like:
 - "How many SSH servers are there globally?"
 - "What's my current Shodan API usage?"
 
+## Logging
+
+The server provides comprehensive logging at multiple levels:
+
+### MCP Protocol Logging
+Log messages are sent to the connected MCP client (like Claude Desktop) and appear in the client's interface. This includes:
+- **Debug**: Detailed execution information
+- **Info**: General operational messages
+- **Warning**: Important notices (e.g., sensitive searches)
+- **Error**: Error conditions and failures
+
+### Server-side Logging
+Traditional Python logging for debugging and monitoring. Logs are written to the console.
+
+### Configuration
+Control logging levels via environment variables:
+
+```bash
+# Python logging level (DEBUG, INFO, WARNING, ERROR)
+SHODAN_MCP_LOG_LEVEL=INFO
+
+# MCP protocol logging level (what gets sent to Claude)
+SHODAN_MCP_PROTOCOL_LOG_LEVEL=INFO
+```
+
+Add these to your `.env` file to customize logging behavior.
+
 ## Development
 
 ### Project Structure
@@ -115,7 +142,8 @@ shodan_mcp/
 ├── src/
 │   └── shodan_mcp/
 │       ├── __init__.py
-│       └── server.py
+│       ├── server.py
+│       └── logging_config.py
 ├── .env.example
 ├── pyproject.toml
 └── README.md

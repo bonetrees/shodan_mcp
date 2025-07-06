@@ -8,7 +8,6 @@ host information, and vulnerability scanning through the Model Context Protocol.
 
 import asyncio
 import json
-import logging
 
 import shodan
 from decouple import config, UndefinedValueError
@@ -20,9 +19,11 @@ from mcp.types import (
     TextContent,
 )
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("shodan-mcp")
+# Import our logging configuration
+from .logging_config import setup_logging, MCPLoggerWrapper
+
+# Configure logging using our custom setup
+logger = setup_logging("shodan-mcp")
 
 # Initialize Shodan API
 try:
@@ -169,10 +170,16 @@ Tip: Check this regularly during intensive research sessions to avoid hitting ra
 
 
 @server.call_tool()
-async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
+async def handle_call_tool(name: str, arguments: dict, context) -> list[TextContent]:
     """Handle tool calls for Shodan operations."""
 
+    # Create MCP logger wrapper
+    mcp_logger = MCPLoggerWrapper(context)
+
     if not api:
+        await mcp_logger.error(
+            "Shodan API not initialized. Check SHODAN_API_KEY environment variable."
+        )
         return [
             TextContent(
                 type="text",
@@ -187,10 +194,18 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
             minify = arguments.get("minify", False)
 
             if not ip:
+                await mcp_logger.error("IP address is required for host lookup")
                 return [TextContent(type="text", text="Error: IP address is required")]
+
+            await mcp_logger.info(f"Looking up IP: {ip}")
+            await mcp_logger.debug(f"Parameters - history: {history}, minify: {minify}")
 
             logger.info(f"Looking up IP: {ip}")
             host_info = api.host(ip, history=history, minify=minify)
+
+            await mcp_logger.debug(
+                f"Found {len(host_info.get('ports', []))} open ports on {ip}"
+            )
 
             # Format the response nicely
             response = {
@@ -234,12 +249,30 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
             limit = min(arguments.get("limit", 10), 100)  # Cap at 100
 
             if not query:
+                await mcp_logger.error("Search query is required")
                 return [
                     TextContent(type="text", text="Error: Search query is required")
                 ]
 
+            await mcp_logger.info(f"Searching Shodan with query: {query}")
+            await mcp_logger.debug(f"Limit set to {limit} results")
+
+            # Add warnings for potentially sensitive searches
+            if "vuln:" in query.lower():
+                await mcp_logger.warning(
+                    "Searching for vulnerabilities - ensure responsible disclosure"
+                )
+            elif "webcam" in query.lower() or "camera" in query.lower():
+                await mcp_logger.warning(
+                    "Searching for IoT devices - respect privacy and security"
+                )
+
             logger.info(f"Searching Shodan with query: {query}")
             results = api.search(query, limit=limit)
+
+            await mcp_logger.debug(
+                f"Search returned {len(results.get('matches', []))} matches out of {results.get('total', 0)} total results"
+            )
 
             response = {
                 "query": query,
@@ -274,12 +307,17 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
             query = arguments.get("query")
 
             if not query:
+                await mcp_logger.error("Search query is required for count")
                 return [
                     TextContent(type="text", text="Error: Search query is required")
                 ]
 
+            await mcp_logger.info(f"Counting results for query: {query}")
+
             logger.info(f"Counting results for query: {query}")
             count_info = api.count(query)
+
+            await mcp_logger.debug(f"Total count: {count_info.get('total', 0)} results")
 
             response = {
                 "query": query,
@@ -296,8 +334,14 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
             ]
 
         if name == "shodan_info":
+            await mcp_logger.info("Getting Shodan API account information")
+
             logger.info("Getting Shodan API info")
             info = api.info()
+
+            await mcp_logger.debug(
+                f"Query credits: {info.get('query_credits')}, Scan credits: {info.get('scan_credits')}"
+            )
 
             response = {
                 "query_credits": info.get("query_credits"),
@@ -318,13 +362,21 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
             ]
 
         else:
+            await mcp_logger.error(f"Unknown tool requested: {name}")
             return [TextContent(type="text", text=f"Error: Unknown tool '{name}'")]
 
     except shodan.APIError as e:
         logger.error(f"Shodan API error: {e}")
+        await mcp_logger.error(f"Shodan API Error: {str(e)}")
+        if "insufficient credits" in str(e).lower():
+            await mcp_logger.warning(
+                "API quota exceeded. Check your Shodan account credits."
+            )
         return [TextContent(type="text", text=f"Shodan API Error: {str(e)}")]
     except (ValueError, KeyError) as e:
         logger.error(f"Invalid request in {name}: {e}")
+        await mcp_logger.error(f"Invalid request: {str(e)}")
+        await mcp_logger.debug(f"Tool: {name}, Arguments: {arguments}")
         return [TextContent(type="text", text=f"Error: {str(e)}")]
 
 
