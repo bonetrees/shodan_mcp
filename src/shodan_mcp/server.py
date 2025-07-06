@@ -22,7 +22,7 @@ from mcp.types import (
     TextContent,
     ImageContent,
     EmbeddedResource,
-    LoggingLevel
+    LoggingLevel,
 )
 
 # Configure logging
@@ -41,6 +41,7 @@ except Exception as e:
 # Create MCP server instance
 server = Server("shodan-mcp")
 
+
 @server.list_tools()
 async def handle_list_tools() -> list[Tool]:
     """List available Shodan tools."""
@@ -53,21 +54,21 @@ async def handle_list_tools() -> list[Tool]:
                 "properties": {
                     "ip": {
                         "type": "string",
-                        "description": "IPv4 address to look up (e.g., '8.8.8.8')"
+                        "description": "IPv4 address to look up (e.g., '8.8.8.8')",
                     },
                     "history": {
                         "type": "boolean",
                         "description": "Include historical data (default: False)",
-                        "default": False
+                        "default": False,
                     },
                     "minify": {
-                        "type": "boolean", 
+                        "type": "boolean",
                         "description": "Return minimal data (default: False)",
-                        "default": False
-                    }
+                        "default": False,
+                    },
                 },
-                "required": ["ip"]
-            }
+                "required": ["ip"],
+            },
         ),
         Tool(
             name="shodan_search",
@@ -77,66 +78,65 @@ async def handle_list_tools() -> list[Tool]:
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "Shodan search query (e.g., 'apache', 'port:22', 'country:US ssl:true')"
+                        "description": "Shodan search query (e.g., 'apache', 'port:22', 'country:US ssl:true')",
                     },
                     "limit": {
                         "type": "integer",
                         "description": "Maximum number of results to return (default: 10, max: 100)",
                         "default": 10,
                         "minimum": 1,
-                        "maximum": 100
-                    }
+                        "maximum": 100,
+                    },
                 },
-                "required": ["query"]
-            }
+                "required": ["query"],
+            },
         ),
         Tool(
             name="shodan_count",
             description="Get the count of search results for a Shodan query without returning the actual results",
             inputSchema={
-                "type": "object", 
+                "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "Shodan search query to count results for"
+                        "description": "Shodan search query to count results for",
                     }
                 },
-                "required": ["query"]
-            }
+                "required": ["query"],
+            },
         ),
         Tool(
             name="shodan_info",
             description="Get information about your Shodan API account (query credits, scan credits, etc.)",
-            inputSchema={
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
-        )
+            inputSchema={"type": "object", "properties": {}, "required": []},
+        ),
     ]
+
 
 @server.call_tool()
 async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
     """Handle tool calls for Shodan operations."""
-    
+
     if not api:
-        return [TextContent(
-            type="text",
-            text="Error: Shodan API not initialized. Please check your SHODAN_API_KEY environment variable."
-        )]
-    
+        return [
+            TextContent(
+                type="text",
+                text="Error: Shodan API not initialized. Please check your SHODAN_API_KEY environment variable.",
+            )
+        ]
+
     try:
         if name == "shodan_host_lookup":
             ip = arguments.get("ip")
             history = arguments.get("history", False)
             minify = arguments.get("minify", False)
-            
+
             if not ip:
                 return [TextContent(type="text", text="Error: IP address is required")]
-            
+
             logger.info(f"Looking up IP: {ip}")
             host_info = api.host(ip, history=history, minify=minify)
-            
+
             # Format the response nicely
             response = {
                 "ip": host_info.get("ip_str"),
@@ -148,9 +148,9 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                 "ports": host_info.get("ports", []),
                 "hostnames": host_info.get("hostnames", []),
                 "last_update": host_info.get("last_update"),
-                "services": []
+                "services": [],
             }
-            
+
             # Extract service information
             for service in host_info.get("data", []):
                 service_info = {
@@ -158,33 +158,41 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                     "protocol": service.get("transport"),
                     "service": service.get("product"),
                     "version": service.get("version"),
-                    "banner": service.get("data", "")[:200] + "..." if len(service.get("data", "")) > 200 else service.get("data", "")
+                    "banner": (
+                        service.get("data", "")[:200] + "..."
+                        if len(service.get("data", "")) > 200
+                        else service.get("data", "")
+                    ),
                 }
                 response["services"].append(service_info)
-            
-            return [TextContent(
-                type="text",
-                text=f"**Shodan Host Information for {ip}**\n\n" + 
-                     json.dumps(response, indent=2, default=str)
-            )]
-            
+
+            return [
+                TextContent(
+                    type="text",
+                    text=f"**Shodan Host Information for {ip}**\n\n"
+                    + json.dumps(response, indent=2, default=str),
+                )
+            ]
+
         elif name == "shodan_search":
             query = arguments.get("query")
             limit = min(arguments.get("limit", 10), 100)  # Cap at 100
-            
+
             if not query:
-                return [TextContent(type="text", text="Error: Search query is required")]
-            
+                return [
+                    TextContent(type="text", text="Error: Search query is required")
+                ]
+
             logger.info(f"Searching Shodan with query: {query}")
             results = api.search(query, limit=limit)
-            
+
             response = {
                 "query": query,
                 "total_results": results.get("total", 0),
                 "results_returned": len(results.get("matches", [])),
-                "matches": []
+                "matches": [],
             }
-            
+
             for match in results.get("matches", []):
                 match_info = {
                     "ip": match.get("ip_str"),
@@ -195,66 +203,75 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                     "organization": match.get("org"),
                     "service": match.get("product"),
                     "version": match.get("version"),
-                    "timestamp": match.get("timestamp")
+                    "timestamp": match.get("timestamp"),
                 }
                 response["matches"].append(match_info)
-            
-            return [TextContent(
-                type="text",
-                text=f"**Shodan Search Results for '{query}'**\n\n" + 
-                     json.dumps(response, indent=2, default=str)
-            )]
-            
+
+            return [
+                TextContent(
+                    type="text",
+                    text=f"**Shodan Search Results for '{query}'**\n\n"
+                    + json.dumps(response, indent=2, default=str),
+                )
+            ]
+
         elif name == "shodan_count":
             query = arguments.get("query")
-            
+
             if not query:
-                return [TextContent(type="text", text="Error: Search query is required")]
-            
+                return [
+                    TextContent(type="text", text="Error: Search query is required")
+                ]
+
             logger.info(f"Counting results for query: {query}")
             count_info = api.count(query)
-            
+
             response = {
                 "query": query,
                 "total_results": count_info.get("total", 0),
-                "facets": count_info.get("facets", {})
+                "facets": count_info.get("facets", {}),
             }
-            
-            return [TextContent(
-                type="text",
-                text=f"**Shodan Count Results for '{query}'**\n\n" + 
-                     json.dumps(response, indent=2, default=str)
-            )]
-            
+
+            return [
+                TextContent(
+                    type="text",
+                    text=f"**Shodan Count Results for '{query}'**\n\n"
+                    + json.dumps(response, indent=2, default=str),
+                )
+            ]
+
         elif name == "shodan_info":
             logger.info("Getting Shodan API info")
             info = api.info()
-            
+
             response = {
                 "query_credits": info.get("query_credits"),
-                "scan_credits": info.get("scan_credits"), 
+                "scan_credits": info.get("scan_credits"),
                 "monitored_ips": info.get("monitored_ips"),
                 "plan": info.get("plan"),
                 "https": info.get("https"),
                 "unlocked": info.get("unlocked"),
-                "unlocked_left": info.get("unlocked_left")
+                "unlocked_left": info.get("unlocked_left"),
             }
-            
-            return [TextContent(
-                type="text",
-                text="**Shodan API Account Information**\n\n" + 
-                     json.dumps(response, indent=2, default=str)
-            )]
-        
+
+            return [
+                TextContent(
+                    type="text",
+                    text="**Shodan API Account Information**\n\n"
+                    + json.dumps(response, indent=2, default=str),
+                )
+            ]
+
         else:
             return [TextContent(type="text", text=f"Error: Unknown tool '{name}'")]
-            
+
     except shodan.APIError as e:
         logger.error(f"Shodan API error: {e}")
         return [TextContent(type="text", text=f"Shodan API Error: {str(e)}")]
     except Exception as e:
         logger.error(f"Unexpected error in {name}: {e}")
         return [TextContent(type="text", text=f"Error: {str(e)}")]
+
 
 async def main():
     """Main entry point for the Shodan MCP server."""
@@ -268,10 +285,11 @@ async def main():
                 server_version="0.1.0",
                 capabilities=server.get_capabilities(
                     notification_options=NotificationOptions(),
-                    experimental_capabilities={}
-                )
-            )
+                    experimental_capabilities={},
+                ),
+            ),
         )
+
 
 if __name__ == "__main__":
     asyncio.run(main())

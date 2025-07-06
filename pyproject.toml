@@ -11,7 +11,8 @@ requires-python = ">=3.13"
 dependencies = [
     "mcp (>=1.10.1,<2.0.0)",
     "shodan (>=1.31.0,<2.0.0)",
-    "python-decouple (>=3.8,<4.0)"
+    "python-decouple (>=3.8,<4.0)",
+    "black (>=25.1.0,<26.0.0)"
 ]
 
 
