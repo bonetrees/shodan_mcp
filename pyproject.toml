@@ -1,0 +1,20 @@
+[project]
+name = "shodan-mcp"
+version = "0.1.0"
+description = "a simple mcp server to interact with the shodan api"
+authors = [
+    {name = "bonetrees"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "mcp (>=1.10.1,<2.0.0)",
+    "shodan (>=1.31.0,<2.0.0)",
+    "python-decouple (>=3.8,<4.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
