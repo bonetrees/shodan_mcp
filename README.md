@@ -13,7 +13,7 @@ An unofficial MCP (Model Context Protocol) server that provides Claude with acce
 
 1. **Clone the repository:**
    ```bash
-   git clone <your-repo-url>
+   git clone https://github.com/bonetrees/shodan_mcp.git
    cd shodan_mcp
    ```
 
