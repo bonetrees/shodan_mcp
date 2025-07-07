@@ -170,7 +170,7 @@ Tip: Check this regularly during intensive research sessions to avoid hitting ra
 
 
 @server.call_tool()
-async def handle_call_tool(name: str, arguments: dict, context) -> list[TextContent]:
+async def handle_call_tool(name: str, arguments: dict, context=None) -> list[TextContent]:
     """Handle tool calls for Shodan operations."""
 
     # Create MCP logger wrapper
@@ -188,182 +188,189 @@ async def handle_call_tool(name: str, arguments: dict, context) -> list[TextCont
         ]
 
     try:
-        if name == "shodan_host_lookup":
-            ip = arguments.get("ip")
-            history = arguments.get("history", False)
-            minify = arguments.get("minify", False)
+        match name:
+            case "shodan_host_lookup":
+                ip = arguments.get("ip")
+                history = arguments.get("history", False)
+                minify = arguments.get("minify", False)
 
-            if not ip:
-                await mcp_logger.error("IP address is required for host lookup")
-                return [TextContent(type="text", text="Error: IP address is required")]
+                if not ip:
+                    await mcp_logger.error("IP address is required for host lookup")
+                    return [
+                        TextContent(type="text", text="Error: IP address is required")
+                    ]
 
-            await mcp_logger.info(f"Looking up IP: {ip}")
-            await mcp_logger.debug(f"Parameters - history: {history}, minify: {minify}")
-
-            logger.info(f"Looking up IP: {ip}")
-            host_info = api.host(ip, history=history, minify=minify)
-
-            await mcp_logger.debug(
-                f"Found {len(host_info.get('ports', []))} open ports on {ip}"
-            )
-
-            # Format the response nicely
-            response = {
-                "ip": host_info.get("ip_str"),
-                "country": host_info.get("country_name"),
-                "city": host_info.get("city"),
-                "organization": host_info.get("org"),
-                "isp": host_info.get("isp"),
-                "asn": host_info.get("asn"),
-                "ports": host_info.get("ports", []),
-                "hostnames": host_info.get("hostnames", []),
-                "last_update": host_info.get("last_update"),
-                "services": [],
-            }
-
-            # Extract service information
-            for service in host_info.get("data", []):
-                service_info = {
-                    "port": service.get("port"),
-                    "protocol": service.get("transport"),
-                    "service": service.get("product"),
-                    "version": service.get("version"),
-                    "banner": (
-                        service.get("data", "")[:200] + "..."
-                        if len(service.get("data", "")) > 200
-                        else service.get("data", "")
-                    ),
-                }
-                response["services"].append(service_info)
-
-            return [
-                TextContent(
-                    type="text",
-                    text=f"**Shodan Host Information for {ip}**\n\n"
-                    + json.dumps(response, indent=2, default=str),
+                await mcp_logger.info(f"Looking up IP: {ip}")
+                await mcp_logger.debug(
+                    f"Parameters - history: {history}, minify: {minify}"
                 )
-            ]
 
-        if name == "shodan_search":
-            query = arguments.get("query")
-            limit = min(arguments.get("limit", 10), 100)  # Cap at 100
+                logger.info(f"Looking up IP: {ip}")
+                host_info = api.host(ip, history=history, minify=minify)
 
-            if not query:
-                await mcp_logger.error("Search query is required")
+                await mcp_logger.debug(
+                    f"Found {len(host_info.get('ports', []))} open ports on {ip}"
+                )
+
+                # Format the response nicely
+                response = {
+                    "ip": host_info.get("ip_str"),
+                    "country": host_info.get("country_name"),
+                    "city": host_info.get("city"),
+                    "organization": host_info.get("org"),
+                    "isp": host_info.get("isp"),
+                    "asn": host_info.get("asn"),
+                    "ports": host_info.get("ports", []),
+                    "hostnames": host_info.get("hostnames", []),
+                    "last_update": host_info.get("last_update"),
+                    "services": [],
+                }
+
+                # Extract service information
+                for service in host_info.get("data", []):
+                    service_info = {
+                        "port": service.get("port"),
+                        "protocol": service.get("transport"),
+                        "service": service.get("product"),
+                        "version": service.get("version"),
+                        "banner": (
+                            service.get("data", "")[:200] + "..."
+                            if len(service.get("data", "")) > 200
+                            else service.get("data", "")
+                        ),
+                    }
+                    response["services"].append(service_info)
+
                 return [
-                    TextContent(type="text", text="Error: Search query is required")
+                    TextContent(
+                        type="text",
+                        text=f"**Shodan Host Information for {ip}**\n\n"
+                        + json.dumps(response, indent=2, default=str),
+                    )
                 ]
 
-            await mcp_logger.info(f"Searching Shodan with query: {query}")
-            await mcp_logger.debug(f"Limit set to {limit} results")
+            case "shodan_search":
+                query = arguments.get("query")
+                limit = min(arguments.get("limit", 10), 100)  # Cap at 100
 
-            # Add warnings for potentially sensitive searches
-            if "vuln:" in query.lower():
-                await mcp_logger.warning(
-                    "Searching for vulnerabilities - ensure responsible disclosure"
+                if not query:
+                    await mcp_logger.error("Search query is required")
+                    return [
+                        TextContent(type="text", text="Error: Search query is required")
+                    ]
+
+                await mcp_logger.info(f"Searching Shodan with query: {query}")
+                await mcp_logger.debug(f"Limit set to {limit} results")
+
+                # Add warnings for potentially sensitive searches
+                if "vuln:" in query.lower():
+                    await mcp_logger.warning(
+                        "Searching for vulnerabilities - ensure responsible disclosure"
+                    )
+                elif "webcam" in query.lower() or "camera" in query.lower():
+                    await mcp_logger.warning(
+                        "Searching for IoT devices - respect privacy and security"
+                    )
+
+                logger.info(f"Searching Shodan with query: {query}")
+                results = api.search(query, limit=limit)
+
+                await mcp_logger.debug(
+                    f"Search returned {len(results.get('matches', []))} matches out of {results.get('total', 0)} total results"
                 )
-            elif "webcam" in query.lower() or "camera" in query.lower():
-                await mcp_logger.warning(
-                    "Searching for IoT devices - respect privacy and security"
-                )
 
-            logger.info(f"Searching Shodan with query: {query}")
-            results = api.search(query, limit=limit)
-
-            await mcp_logger.debug(
-                f"Search returned {len(results.get('matches', []))} matches out of {results.get('total', 0)} total results"
-            )
-
-            response = {
-                "query": query,
-                "total_results": results.get("total", 0),
-                "results_returned": len(results.get("matches", [])),
-                "matches": [],
-            }
-
-            for match in results.get("matches", []):
-                match_info = {
-                    "ip": match.get("ip_str"),
-                    "port": match.get("port"),
-                    "protocol": match.get("transport"),
-                    "country": match.get("location", {}).get("country_name"),
-                    "city": match.get("location", {}).get("city"),
-                    "organization": match.get("org"),
-                    "service": match.get("product"),
-                    "version": match.get("version"),
-                    "timestamp": match.get("timestamp"),
+                response = {
+                    "query": query,
+                    "total_results": results.get("total", 0),
+                    "results_returned": len(results.get("matches", [])),
+                    "matches": [],
                 }
-                response["matches"].append(match_info)
 
-            return [
-                TextContent(
-                    type="text",
-                    text=f"**Shodan Search Results for '{query}'**\n\n"
-                    + json.dumps(response, indent=2, default=str),
-                )
-            ]
+                for match in results.get("matches", []):
+                    match_info = {
+                        "ip": match.get("ip_str"),
+                        "port": match.get("port"),
+                        "protocol": match.get("transport"),
+                        "country": match.get("location", {}).get("country_name"),
+                        "city": match.get("location", {}).get("city"),
+                        "organization": match.get("org"),
+                        "service": match.get("product"),
+                        "version": match.get("version"),
+                        "timestamp": match.get("timestamp"),
+                    }
+                    response["matches"].append(match_info)
 
-        if name == "shodan_count":
-            query = arguments.get("query")
-
-            if not query:
-                await mcp_logger.error("Search query is required for count")
                 return [
-                    TextContent(type="text", text="Error: Search query is required")
+                    TextContent(
+                        type="text",
+                        text=f"**Shodan Search Results for '{query}'**\n\n"
+                        + json.dumps(response, indent=2, default=str),
+                    )
                 ]
 
-            await mcp_logger.info(f"Counting results for query: {query}")
+            case "shodan_count":
+                query = arguments.get("query")
 
-            logger.info(f"Counting results for query: {query}")
-            count_info = api.count(query)
+                if not query:
+                    await mcp_logger.error("Search query is required for count")
+                    return [
+                        TextContent(type="text", text="Error: Search query is required")
+                    ]
 
-            await mcp_logger.debug(f"Total count: {count_info.get('total', 0)} results")
+                await mcp_logger.info(f"Counting results for query: {query}")
 
-            response = {
-                "query": query,
-                "total_results": count_info.get("total", 0),
-                "facets": count_info.get("facets", {}),
-            }
+                logger.info(f"Counting results for query: {query}")
+                count_info = api.count(query)
 
-            return [
-                TextContent(
-                    type="text",
-                    text=f"**Shodan Count Results for '{query}'**\n\n"
-                    + json.dumps(response, indent=2, default=str),
+                await mcp_logger.debug(
+                    f"Total count: {count_info.get('total', 0)} results"
                 )
-            ]
 
-        if name == "shodan_info":
-            await mcp_logger.info("Getting Shodan API account information")
+                response = {
+                    "query": query,
+                    "total_results": count_info.get("total", 0),
+                    "facets": count_info.get("facets", {}),
+                }
 
-            logger.info("Getting Shodan API info")
-            info = api.info()
+                return [
+                    TextContent(
+                        type="text",
+                        text=f"**Shodan Count Results for '{query}'**\n\n"
+                        + json.dumps(response, indent=2, default=str),
+                    )
+                ]
 
-            await mcp_logger.debug(
-                f"Query credits: {info.get('query_credits')}, Scan credits: {info.get('scan_credits')}"
-            )
+            case "shodan_info":
+                await mcp_logger.info("Getting Shodan API account information")
 
-            response = {
-                "query_credits": info.get("query_credits"),
-                "scan_credits": info.get("scan_credits"),
-                "monitored_ips": info.get("monitored_ips"),
-                "plan": info.get("plan"),
-                "https": info.get("https"),
-                "unlocked": info.get("unlocked"),
-                "unlocked_left": info.get("unlocked_left"),
-            }
+                logger.info("Getting Shodan API info")
+                info = api.info()
 
-            return [
-                TextContent(
-                    type="text",
-                    text="**Shodan API Account Information**\n\n"
-                    + json.dumps(response, indent=2, default=str),
+                await mcp_logger.debug(
+                    f"Query credits: {info.get('query_credits')}, Scan credits: {info.get('scan_credits')}"
                 )
-            ]
 
-        else:
-            await mcp_logger.error(f"Unknown tool requested: {name}")
-            return [TextContent(type="text", text=f"Error: Unknown tool '{name}'")]
+                response = {
+                    "query_credits": info.get("query_credits"),
+                    "scan_credits": info.get("scan_credits"),
+                    "monitored_ips": info.get("monitored_ips"),
+                    "plan": info.get("plan"),
+                    "https": info.get("https"),
+                    "unlocked": info.get("unlocked"),
+                    "unlocked_left": info.get("unlocked_left"),
+                }
+
+                return [
+                    TextContent(
+                        type="text",
+                        text="**Shodan API Account Information**\n\n"
+                        + json.dumps(response, indent=2, default=str),
+                    )
+                ]
+
+            case _:
+                await mcp_logger.error(f"Unknown tool requested: {name}")
+                return [TextContent(type="text", text=f"Error: Unknown tool '{name}'")]
 
     except shodan.APIError as e:
         logger.error(f"Shodan API error: {e}")
